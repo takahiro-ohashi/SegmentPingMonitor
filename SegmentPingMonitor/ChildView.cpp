@@ -109,10 +109,11 @@ int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
     //Gridの配列内をすべて-1で初期化する。すべての配列に-1が入っている場合は徐々に色が変わる表示となる。
     InitializeGrid();
-    //タイマーが設定状態でないことを記憶する為の初期値0をセットする。アプリケーションs終了時に0以外の場合は
+    //タイマーが設定状態でないことを記憶する為の初期値0をセットする。アプリケーションs終了時に0以外の場合はタイマーをKillする処理がある。
     m_timerID = 0;
     return 0;
 }
+//表示をすべていったんクリア（段階的な色表示）する為の初期値-1を配列全体にセットする。
 void CChildView::InitializeGrid() 
 {
     for (int y = 0; y < 16; y++) 
@@ -127,10 +128,6 @@ void CChildView::InitializeGrid()
 }
 
 #include "CIPAddressDialog.h"
-static UINT indicators[] =
-{
-   ID_SEPARATOR
-};
 //SETTINGボタン押下時のコード
 void CChildView::OnButtonForm()
 {
@@ -165,6 +162,7 @@ void CChildView::OnButtonForm()
     // 渡したいデータのサイズを設定します。
     data.cbData = sizeof(m_sendData);
 
+    //IPアドレスのセグメントをステータスバーに表示
     AfxGetApp()->m_pMainWnd->SendMessage(WM_CUSTOM_STATUSBAR, 0, (LPARAM)&data);
 
 }
@@ -204,10 +202,10 @@ afx_msg LRESULT CChildView::OnCustomStatus(WPARAM wParam, LPARAM lParam)
 
     int* ptr = &GridStatus[0][0]; // 二次元配列の先頭アドレスをポインタに代入
     ptr[wParam] = (int)lParam;
-    //Invalidate();
+    //Invalidate(); //実験的に書き換えた内容を画面に表示する。
     return 0;
 }
-//すべての処理完了後にタイマーを止める処理の実行
+//すべてのスレッド処理完了後にタイマーを止める処理の実行
 afx_msg LRESULT CChildView::OnCustomFinish(WPARAM wParam, LPARAM lParam)
 {
     if (m_timerID != 0)
@@ -224,7 +222,7 @@ afx_msg LRESULT CChildView::OnCustomFinish(WPARAM wParam, LPARAM lParam)
     }
     return 0;
 }
-
+//Rowと読んでいるのは、２次元配列を１次元配列で管理してその一次元の行番号のみで考えている為
 void CChildView::initRow()
 {
     // TODO: Add your implementation code here.
@@ -241,7 +239,9 @@ void CChildView::initRow()
         rowLists->del();
         delete rowLists;
     }
+    //行の払い出し処理を初期化する。引数に対象となる行の数を与える
     rowLists = new RowManager(rows);
+    //第４オクテッドが1～254になるまでを対象とするためのIPアドレス文字列生成を行う
     for (int i = 1; i < 255; i++) {
         //チェックしたいIPアドレスを生成する。
         ipAddress.Format(_T("%d.%d.%d.%d"),
@@ -249,12 +249,13 @@ void CChildView::initRow()
             (int)((dwIPAddress >> 16) & 0xFF),
             (int)((dwIPAddress >> 8) & 0xFF),
             (int)(i & 0xFF));//(int)(dwIPAddress & 0xFF));
+        //生成したIPアドレスを払い出しクラスに登録して紐づける
         rowLists->SetIpAddr(ipAddress.GetBuffer());
     }
 
 }
 
-
+//払い出しの済んでいない行を取得する。(行を0相対で返す)
 int CChildView::GetRow()
 {
     // TODO: Add your implementation code here.
@@ -313,7 +314,6 @@ void CChildView::DrawScene(CDC* pDC)
 {
     // ダブルバッファリングされた描画処理をここに記述する
     // pDC はメモリ内のデバイスコンテキスト (m_MemDC) を指す
-    // 例えば、次のように描画命令を追加できる:
     // TODO: Add your message handler code here
     CRect rectClient;
     GetClientRect(&rectClient);
@@ -341,20 +341,22 @@ void CChildView::DrawScene(CDC* pDC)
             int blue = row * (255 / numSteps); // 青成分を変化させる
 
             COLORREF color;// = RGB(red, green, blue);
+            //グリッド配列（２次元配列でみて、値が-1の場合は段階的な色指定を行う。文字色は黒）
             if (GridStatus[row][col] == -1) {
                 color = RGB(red, green, blue);
                 pDC->SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
-            }
+            }//グリッド配列（２次元配列で見て、値が0の場合は疎通なしと判断して、RGB各色を半分に設定する。文字色は白）
             else if (GridStatus[row][col] == 0) {
                 color = RGB(red * 0.5, green * 0.5, blue * 0.5);
                 pDC->SetTextColor(RGB(255, 255, 255)); // 新しい文字色を設定
-            }
+            }//グリッド配列（２次元配列で考えて、値が4の場合は疎通ありとして、RGB各色の明るさを倍に設定する。255を超える場合は255に丸める。文字色は黒）
             else if (GridStatus[row][col] == 4) {
                 color = RGB(red * 2 > 255 ? 255 : red * 2,
                     green * 2 > 255 ? 255 : green * 2,
                     blue * 2 > 255 ? 255 : blue * 255);
                 pDC->SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
             }
+            //画面の一番右下から２つ分はブロードキャストや割り当てがないアドレスとなる為、色を黒、文字色を白に設定する。
             if ((row == 15) && ((col == 14) || (col == 15))) {
                 color = RGB(0, 0, 0);
                 pDC->SetTextColor(RGB(255, 255, 255)); // 新しい文字色を設定
@@ -371,10 +373,14 @@ void CChildView::DrawScene(CDC* pDC)
             int right = left + rectWidth;
             int bottom = top + rectHeight;
 
+            //段階的に色塗りを変更しながら色塗りを行う（すでに塗りつぶす色は設定済みで枠付き四角で塗りつぶすのみの処理を行う）
             pDC->Rectangle(CRect(left, top, right, bottom));
+            //上記で塗りつぶした中心にIPアドレス第4オクテッドの数字を記載する
             CString strData;
             strData.Format(_T("%03d"), ipCount);
+            //数字の描画処理
             pDC->DrawText(strData, CRect(left, top, right, bottom), DT_CENTER | DT_SINGLELINE | DT_NOPREFIX | DT_VCENTER);
+            //ipアドレスの第四オクテッド部分の値を１進める
             ipCount++;
         }
     }
@@ -383,6 +389,7 @@ void CChildView::DrawScene(CDC* pDC)
     pDC->SetTextColor(originalColor); // 元の文字色に戻す
 }
 
+//画面サイズ変更時イベント
 void CChildView::OnSize(UINT nType, int cx, int cy)
 {
     CWnd::OnSize(nType, cx, cy);
