@@ -24,6 +24,7 @@
 #define WM_CUSTOM_FINISH (WM_USER + 102)
 // CChildView window
 
+
 class CChildView : public CWnd
 {
 // Construction

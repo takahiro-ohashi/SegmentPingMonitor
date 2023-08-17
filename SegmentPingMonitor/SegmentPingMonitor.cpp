@@ -58,7 +58,8 @@ CSegmentPingMonitorApp::CSegmentPingMonitorApp() noexcept
 
 CSegmentPingMonitorApp theApp;
 
-
+HINSTANCE hDLL1;
+HINSTANCE hDLL2;
 // CSegmentPingMonitorApp initialization
 
 BOOL CSegmentPingMonitorApp::InitInstance()

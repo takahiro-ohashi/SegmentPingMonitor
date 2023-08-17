@@ -18,4 +18,5 @@ typedef struct tagSendData
     {}
 }
 SendData;
+
 #endif //PCH_H

@@ -8,7 +8,8 @@
 #include <icmpapi.h>
 
 // Need to link with Iplhlapi.lib
-#pragma comment(lib, "IPHLPAPI.lib")
+//#pragma comment(lib, "IPHLPAPI.lib")
+
 class Ping
 {
 public:

@@ -19,9 +19,16 @@ ThreadMaker::ThreadMaker(LPVOID viewPointer, int n) : CThread(viewPointer)
 	interval(0);
 	id = n;
 }
+extern HINSTANCE hDLL1;
+extern HINSTANCE hDLL2;
+
 DWORD ThreadMaker::ThreadFunc()
 {
 	pView = (CChildView*)view;
+
+	// = LoadLibrary(_T("Iphlpapi.dll"));
+	hDLL1 = LoadLibrary(_T("Iphlpapi.dll"));
+	hDLL2 = LoadLibrary(_T("Ws2_32.dll"));
 
 	bool result = false;
 	//CListCtrl* pListCtrl;
@@ -58,5 +65,9 @@ DWORD ThreadMaker::ThreadFunc()
 		delete thread_vector[i];
 	}
 	pView->PostMessageA(WM_CUSTOM_FINISH, 0, 0);
+
+	FreeLibrary(hDLL2);
+	FreeLibrary(hDLL1);
+
 	return 0;
 }

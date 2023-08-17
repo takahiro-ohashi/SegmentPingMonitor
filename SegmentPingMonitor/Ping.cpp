@@ -31,114 +31,130 @@ void Ping::stopreq()
 {
 	stopFlag = true;
 }
+/*
 #include <winsock2.h>
-#include <ws2tcpip.h>
+*/
+//#include <ws2tcpip.h>
 #include "resource.h"
+extern HINSTANCE hDLL1;// = LoadLibrary(_T("Iphlpapi.dll"));
+extern HINSTANCE hDLL2;// = LoadLibrary(_T("Iphlpapi.dll"));
 int Ping::gui_ping(CChildView* pView, long row)
 {
-	stopFlag = false;
-	int rowInf = 0;
-	//int successCounter;
-	while (true) {
-		rowInf = pView->GetRow();
-		if (rowInf < 0 || stopFlag) {
-			break;
-		}
+	if (hDLL1)
+	{
+		// ŠÖ”‚Ö‚Ìƒ|ƒCƒ“ƒ^‚ğæ“¾
+		typedef DWORD (*IcmpSendEchoType)(
+			_In_                       HANDLE                   IcmpHandle,
+			_In_                       IPAddr                   DestinationAddress,
+			_In_reads_bytes_(RequestSize)   LPVOID                   RequestData,
+			_In_                       WORD                     RequestSize,
+			_In_opt_                   PIP_OPTION_INFORMATION   RequestOptions,
+			_Out_writes_bytes_(ReplySize)    LPVOID                   ReplyBuffer,
+			_In_range_(>= , sizeof(ICMP_ECHO_REPLY) + RequestSize + 8)
+			DWORD                    ReplySize,
+			_In_                       DWORD                    Timeout
+		);
+		typedef HANDLE (*IcmpCreateFileType)(VOID);
+		typedef BOOL (*IcmpCloseHandleType)(
+			_In_ HANDLE  IcmpHandle
+		);
+		typedef int (*InetPtonAType)(int   Family,
+			PCSTR pszAddrString,
+			PVOID pAddrBuf);
+
+		IcmpSendEchoType IcmpSendEcho = (IcmpSendEchoType)GetProcAddress(hDLL1, "IcmpSendEcho");
+		IcmpCreateFileType IcmpCreateFile = (IcmpCreateFileType)GetProcAddress(hDLL1, "IcmpCreateFile");
+		IcmpCloseHandleType IcmpCloseHandle = (IcmpCloseHandleType)GetProcAddress(hDLL1, "IcmpCloseHandle");
+		InetPtonAType InetPtonA = (InetPtonAType)GetProcAddress(hDLL2, "inet_pton");
+
+		if (IcmpSendEcho && IcmpCreateFile && IcmpCloseHandle && InetPtonA)
 		{
-			//CString statusStr;
-			//successCounter = 0;
-			//statusStr.Format(_T("%d"), successCounter);
-			//pView->SetState(rowInf, statusStr);
-			char* gDestination = NULL;
-			gDestination = (char*)malloc(1024);
-			//char temp[256];
-			int argc = 2;
-			//char** argv;
-			//pView->SetState(rowInf, _T("0"));
-			//CListCtrl* pListCtrl;
-			//pListCtrl = &pView->GetListCtrl();
-			//PostMessage(pView->GetSafeHwnd(),WM_CUSTOM_STATUS, rowInf, 0);
-			//pView->PostMessage(WM_CUSTOM_STATUS, rowInf, 0);
-			//pView->OnCustomStatus(rowInf, 0);
-			//TCHAR tszText[256];
-			//memset(&tszText, 0, sizeof(TCHAR) * 256);
-			//pListCtrl->GetItemText(rowInf, 0, tszText, 256);
-			TCHAR *tszText = pView->rowLists->GetIpAddr(rowInf);
-			char* p1 = "";
-			char* p2 = "";
-			//argv = (char**)malloc(sizeof(char*) * 2);
-			//memset(argv, 0, sizeof(char*) * 2);
-			//CString strText = tszText;
-			//const size_t textsize = 256;
-			//char pszText[textsize];
-			//WideCharToMultiByte(CP_ACP, 0, strText.GetBuffer()), -1, pszText, textsize, NULL, NULL);
-			//*(argv + 0) = p1;
-			//*(argv + 1) = tszText;
-			HANDLE hIcmpFile;
-			unsigned long ipaddr = INADDR_NONE;
-			DWORD dwRetVal = 0;
-			char SendData[32];
-			sprintf_s(SendData, 32,"DataBuffer_%s_%d", tszText, rowInf);
-			LPVOID ReplyBuffer = NULL;
-			DWORD ReplySize = 0;
-			//int ipx = validateAddress(tszText);
-			int ipx = pView->rowLists->GetIPV(rowInf);
-			if (ipx < 0) {
-				char Message[256];
-				sprintf_s(Message,256, "Invalid Address:%s", tszText);
-				AfxMessageBox(Message, MB_OK);
-				goto cleanup;
-			}
-			//ipaddr = inet_addr(argv[1]);
-			if (ipx == 1) {
-				InetPton(AF_INET, _T(tszText), &ipaddr);
-			}
-			else {
-				InetPton(AF_INET6, _T(tszText), &ipaddr);
-			}
-			hIcmpFile = IcmpCreateFile();
-			if (hIcmpFile == INVALID_HANDLE_VALUE) {
-				goto cleanup;
-			}
-			ReplySize = sizeof(ICMP_ECHO_REPLY) + sizeof(SendData);
-			ReplyBuffer = (void*)malloc(ReplySize);
-			if (ReplyBuffer == NULL) {
-				goto cleanup;
-			}
-			{
-				//CSingleLock lock(&pingCriticalSection, TRUE);
-				dwRetVal = IcmpSendEcho(hIcmpFile, ipaddr, SendData, sizeof(SendData),
-					NULL,ReplyBuffer,ReplySize,1000);
+			stopFlag = false;
+			int rowInf = 0;
+			//int successCounter;
 
-			}
-			if (dwRetVal != 0) 
-			{
-				PICMP_ECHO_REPLY pEchoReply = (PICMP_ECHO_REPLY)ReplyBuffer;
-				struct in_addr ReplyAddr;
-				ReplyAddr.S_un.S_addr = pEchoReply->Address;
-				//if (dwRetVal > 1) {
+			while (true) {
+				rowInf = pView->GetRow();
+				if (rowInf < 0 || stopFlag) {
+					break;
+				}
+				{
+					char* gDestination = NULL;
+					gDestination = (char*)malloc(1024);
+					TCHAR *tszText = pView->rowLists->GetIpAddr(rowInf);
+					HANDLE hIcmpFile;
+					unsigned long ipaddr = INADDR_NONE;
+					DWORD dwRetVal = 0;
+					char SendData[32];
+					sprintf_s(SendData, 32,"DataBuffer_%s_%d", tszText, rowInf);
+					LPVOID ReplyBuffer = NULL;
+					DWORD ReplySize = 0;
+					//int ipx = validateAddress(tszText);
+					int ipx = pView->rowLists->GetIPV(rowInf);
+					if (ipx < 0) {
+						char Message[256];
+						sprintf_s(Message,256, "Invalid Address:%s", tszText);
+						AfxMessageBox(Message, MB_OK);
+						goto cleanup;
+					}
+					//ipaddr = inet_addr(argv[1]);
+					if (ipx == 1) {
+						InetPtonA(AF_INET, _T(tszText), &ipaddr);
+					}
+					else {
+						InetPtonA(AF_INET6, _T(tszText), &ipaddr);
+					}
+					hIcmpFile = IcmpCreateFile();
+					if (hIcmpFile == INVALID_HANDLE_VALUE) {
+						goto cleanup;
+					}
+					ReplySize = sizeof(ICMP_ECHO_REPLY) + sizeof(SendData);
+					ReplyBuffer = (void*)malloc(ReplySize);
+					if (ReplyBuffer == NULL) {
+						goto cleanup;
+					}
+					{
+						//CSingleLock lock(&pingCriticalSection, TRUE);
+						dwRetVal = IcmpSendEcho(hIcmpFile, ipaddr, SendData, sizeof(SendData),
+							NULL,ReplyBuffer,ReplySize,1000);
 
-				//}
-				//char Message[256];
-				//sprintf_s(Message,256, "4");
-				//pView->SetState(rowInf, Message);
-				//PostMessage(pView->GetSafeHwnd(), WM_CUSTOM_STATUS, rowInf, 4);
-				pView->PostMessageA(WM_CUSTOM_STATUS, rowInf, 4);
+
+					}
+					if (dwRetVal != 0) 
+					{
+						PICMP_ECHO_REPLY pEchoReply = (PICMP_ECHO_REPLY)ReplyBuffer;
+						struct in_addr ReplyAddr;
+						ReplyAddr.S_un.S_addr = pEchoReply->Address;
+						//if (dwRetVal > 1) {
+
+						//}
+						//char Message[256];
+						//sprintf_s(Message,256, "4");
+						//pView->SetState(rowInf, Message);
+						//PostMessage(pView->GetSafeHwnd(), WM_CUSTOM_STATUS, rowInf, 4);
+						pView->PostMessageA(WM_CUSTOM_STATUS, rowInf, 4);
+					}
+					else 
+					{
+						//char Message[256];
+						//sprintf_s(Message,256, "0");
+						//pView->SetState(rowInf, Message);
+						//PostMessage(pView->GetSafeHwnd(), WM_CUSTOM_STATUS, rowInf, 0);
+						pView->PostMessageA(WM_CUSTOM_STATUS, rowInf, 0);
+					}
+					IcmpCloseHandle(hIcmpFile);
+					free(ReplyBuffer);
+				cleanup:
+					//free(argv);
+					free(gDestination);
+				}
 			}
-			else 
-			{
-				//char Message[256];
-				//sprintf_s(Message,256, "0");
-				//pView->SetState(rowInf, Message);
-				//PostMessage(pView->GetSafeHwnd(), WM_CUSTOM_STATUS, rowInf, 0);
-				pView->PostMessageA(WM_CUSTOM_STATUS, rowInf, 0);
-			}
-			IcmpCloseHandle(hIcmpFile);
-			free(ReplyBuffer);
-		cleanup:
-			//free(argv);
-			free(gDestination);
+		}
+		else
+		{
+		// ŠÖ”‚ªŒ©‚Â‚©‚ç‚È‚¢ê‡‚Ìˆ—
 		}
 	}
+
 	return 0;
 }
