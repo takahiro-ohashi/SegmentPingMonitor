@@ -21,6 +21,7 @@
 
 #define WM_CUSTOM_STATUSBAR (WM_USER + 100)
 #define WM_CUSTOM_STATUS (WM_USER + 101)
+#define WM_CUSTOM_FINISH (WM_USER + 102)
 // CChildView window
 
 class CChildView : public CWnd
@@ -52,6 +53,14 @@ public:
 	DWORD  dwIPAddress;
 	void initRow();
 	int GetRow();
+
+	CBitmap m_MemBitmap;
+	CDC m_MemDC;
+	BOOL m_bMemDCValid;
+	UINT m_timerID;
+
+	void CreateMemDC(CDC* pDC, const CRect& rect);
+	void DrawScene(CDC* pDC);
 protected:
 	afx_msg void OnPaint();
 	DECLARE_MESSAGE_MAP()
@@ -61,5 +70,10 @@ public:
 	afx_msg void OnButtonForm();
 	afx_msg void OnButtonPing();
 	afx_msg LRESULT OnCustomStatus(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnCustomFinish(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnDestroy();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg BOOL OnEraseBkgnd(CDC* pDC);
+	afx_msg void OnTimer(UINT_PTR nIDEvent);
 };
 

@@ -21,16 +21,25 @@
 #define new DEBUG_NEW
 #endif
 
+//タイマー識別用ID
+#define TIMER_REDRAW_ID  1
 
 // CChildView
 
 CChildView::CChildView()
 {
+    //IPアドレスを設定していない場合は192.168.1.xのセグメントにPINGを実行する。
+    //その為の初期値は0xc0a80101(192.168.1.1)
     dwIPAddress=0xc0a80101;
 }
 
 CChildView::~CChildView()
 {
+    //ダブルバッファ領域の削除
+    if (m_MemDC.GetSafeHdc())
+        m_MemDC.DeleteDC();
+    if (m_MemBitmap.GetSafeHandle())
+        m_MemBitmap.DeleteObject();
 }
 
 
@@ -40,12 +49,17 @@ BEGIN_MESSAGE_MAP(CChildView, CWnd)
     ON_COMMAND(ID_BUTTON_FORM, &CChildView::OnButtonForm)
     ON_COMMAND(ID_BUTTON_PING, &CChildView::OnButtonPing)
     ON_MESSAGE(WM_CUSTOM_STATUS, &CChildView::OnCustomStatus)
+    ON_MESSAGE(WM_CUSTOM_FINISH, &CChildView::OnCustomFinish)
+    ON_WM_DESTROY()
+    ON_WM_SIZE()
+    ON_WM_ERASEBKGND()
+    ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
 
 // CChildView message handlers
-
+//ウインドウ生成時のパラメータ設定
 BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs) 
 {
 	if (!CWnd::PreCreateWindow(cs))
@@ -59,78 +73,27 @@ BOOL CChildView::PreCreateWindow(CREATESTRUCT& cs)
 	return TRUE;
 }
 
+//画面の描画処理（実際の細かい描画はDrawScene関数内で行う）
 void CChildView::OnPaint() 
 {
-	CPaintDC dc(this); // device context for painting
-    CRect rectClient;
-    GetClientRect(&rectClient);
 
-    dc.SetBkMode(TRANSPARENT); // 背景を透明にする
-    CFont font;
-    font.CreateFont(25, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
-        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, _T("Arial"));
+    CPaintDC dc(this);
+    CRect clientRect;
+    GetClientRect(&clientRect);
 
-    CFont* pOldFont = dc.SelectObject(&font);
-    COLORREF originalColor = dc.GetTextColor(); // 元の文字色を保存
-    int cellSize = 20; // セルのサイズ（ピクセル単位）
-    int numRows = 16;
-    int numCols = 16;
+    // メモリ内のビットマップとデバイスコンテキストを作成
+    if (!m_bMemDCValid || m_MemBitmap.GetSafeHandle() == nullptr)
+        CreateMemDC(&dc, clientRect);
 
-    int numSteps = 16; // グラデーションのステップ数
+    // 背景を塗りつぶす
+    m_MemDC.FillSolidRect(clientRect, GetSysColor(COLOR_WINDOW));
 
-    int ipCount = 1;
-    for (int row = 0; row < numRows; ++row)
-    {
-        for (int col = 0; col < numCols; ++col)
-        {
-            int red = 255 - row * (255 / numSteps); // 赤成分を変化させる
-            int green = col*numSteps; // 緑成分を固定
-            int blue = row * (255 / numSteps); // 青成分を変化させる
+    // シーンを描画する
+    DrawScene(&m_MemDC);
 
-            COLORREF color;// = RGB(red, green, blue);
-            if (GridStatus[row][col] == -1) {
-                color = RGB(red, green, blue);
-                dc.SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
-            }else if (GridStatus[row][col] == 0) {
-                color = RGB(red*0.5,green*0.5,blue*0.5);
-                dc.SetTextColor(RGB(255,255,255)); // 新しい文字色を設定
-            }
-            else if (GridStatus[row][col] == 4) {
-                color = RGB(red * 2 > 255 ? 255 : red * 2,
-                    green * 2 > 255 ? 255 : green * 2,
-                    blue * 2 > 255 ? 255:blue*255);
-                dc.SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
-            }
-            if ((row == 15) && ((col == 14)||(col == 15))) {
-                color = RGB(0, 0, 0);
-                dc.SetTextColor(RGB(255, 255, 255)); // 新しい文字色を設定
-            }
-            CBrush brush(color);
+    // メモリ内のビットマップを画面に転送する
+    dc.BitBlt(0, 0, clientRect.Width(), clientRect.Height(), &m_MemDC, 0, 0, SRCCOPY);
 
-            dc.SelectObject(&brush);
-
-            int rectWidth = rectClient.Width() / numSteps;
-            int rectHeight = rectClient.Height() / numSteps;
-
-            int left = col * rectWidth;
-            int top = row * rectHeight;
-            int right = left + rectWidth;
-            int bottom = top + rectHeight;
-
-            dc.Rectangle(CRect(left, top, right, bottom));
-            CString strData;
-            strData.Format(_T("%03d"), ipCount);
-            //dc.DrawText(strData, CRect(left, top, right, bottom), DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_VCENTER);
-            //dc.DrawText(strData, CRect(left, top, right, bottom), DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_TOP);
-            dc.DrawText(strData, CRect(left, top, right, bottom), DT_CENTER | DT_SINGLELINE | DT_NOPREFIX | DT_VCENTER);
-            ipCount++;
-        }
-    }
-    dc.SelectObject(pOldFont); // 元のフォントに戻す
-    font.DeleteObject(); // フォントを解放
-	// TODO: Add your message handler code here
-    dc.SetTextColor(originalColor); // 元の文字色に戻す
-	// Do not call CWnd::OnPaint() for painting messages
 }
 
 
@@ -144,7 +107,10 @@ int CChildView::OnCreate(LPCREATESTRUCT lpCreateStruct)
     workerthread = 0;
     rowLists = 0;
 
+    //Gridの配列内をすべて-1で初期化する。すべての配列に-1が入っている場合は徐々に色が変わる表示となる。
     InitializeGrid();
+    //タイマーが設定状態でないことを記憶する為の初期値0をセットする。アプリケーションs終了時に0以外の場合は
+    m_timerID = 0;
     return 0;
 }
 void CChildView::InitializeGrid() 
@@ -159,37 +125,24 @@ void CChildView::InitializeGrid()
     //GridStatus[10][10] = 4;
 
 }
-// ダイアログを表示するためのコード
-//CIPAddressDialog dlg;
-//dlg.DoModal();
 
 #include "CIPAddressDialog.h"
 static UINT indicators[] =
 {
    ID_SEPARATOR
 };
+//SETTINGボタン押下時のコード
 void CChildView::OnButtonForm()
 {
     // TODO: Add your command handler code here
+    //IPアドレス指定用ダイアログの表示
     CIPAddressDialog dlg(this);
     if (IDCANCEL == dlg.DoModal()) {
         return;
     }
 
-    //CIPAddressCtrl *m_ipAddressCtrl = &dlg.m_ipAddressCtrl;
-    //PostMessage(WM_CUSTOM_STATUSBAR, 0, 0);
-    //DWORD dwIPAddress;
-
-    //m_ipAddressCtrl->GetAddress(dwIPAddress);
     dwIPAddress = dlg.GetIPDW();
 
-
-    
-    //ipAddress.Format(_T("%d.%d.%d.%d"),
-    //    (int)((dwIPAddress >> 24) & 0xFF),
-    //    (int)((dwIPAddress >> 16) & 0xFF),
-    //    (int)((dwIPAddress >> 8) & 0xFF),
-    //    (int)(dwIPAddress & 0xFF));
     ipAddress.Format(_T("%d.%d.%d.%d"),
         (int)((dwIPAddress >> 24) & 0xFF),
         (int)((dwIPAddress >> 16) & 0xFF),
@@ -213,31 +166,25 @@ void CChildView::OnButtonForm()
     data.cbData = sizeof(m_sendData);
 
     AfxGetApp()->m_pMainWnd->SendMessage(WM_CUSTOM_STATUSBAR, 0, (LPARAM)&data);
-    // WM_COPYDATAメッセージを送信します。
-    //SendMessage(WM_COPYDATA, MSG_SEND_DATA, (LPARAM)&data);
-
-
-    //CStatusBar* pBar = (CStatusBar*)AfxGetApp()->m_pMainWnd->GetDescendantWindow(AFX_IDW_STATUS_BAR);
-    //char Separator[90];
-    //CMFCRibbonStatusBar* pBar = (CMFCRibbonStatusBar*)AfxGetApp()->m_pMainWnd->GetDescendantWindow(AFX_IDW_STATUS_BAR);
-    //CMFCRibbonStatusBar* pBar = (CMFCRibbonStatusBar*)AfxGetApp()->m_pMainWnd->GetDescendantWindow(AFX_IDW_STATUS_BAR);
-    //((CMainFrame*)(AfxGetApp()->m_pMainWnd)->m_wndStatusBar;
-    //char Separator[256];
-    //sprintf_s(Separator,256, "TEST");
-    //LPCTSTR aa = _T("AAAAAAA");
-    //pBar->SetPaneText(0, (LPCTSTR)Separator, TRUE);
-    //pBar->SetDlgItemTextW(0, (LPCTSTR)Separator);
-    //pBar->SetPaneText(0, (LPCTSTR)Separator, TRUE);
-
-    //pBar->SetWindowText(aa);
-    //pBar->SetWindowText((LPCTSTR)Separator);
 
 }
 
 #include "ThreadMaker.h"
+//PINGボタン押下時の実行コード
 void CChildView::OnButtonPing()
 {
     // TODO: Add your command handler code here
+    //再描画間隔 １秒
+    UINT interval = 1 * 1000;
+    //CALLBACK* timerHandler = NULL;
+    //タイマーを設定する。
+    m_timerID = SetTimer(TIMER_REDRAW_ID, interval, NULL);
+    // タイマーを設定できない場合
+    if (m_timerID == 0)
+    {
+        AfxMessageBox(_T("タイマーを設定できませんでした。"));
+    }
+
     work.freeThreads();
     if ((unsigned long long)workerthread != 0) {
         delete workerthread;
@@ -249,48 +196,59 @@ void CChildView::OnButtonPing()
     workerthread->priority(1);
     work.start();
 }
+//配列の状態を更新 wParamで指定する場所にlParamの値を書き込む
+//wParamは0～253の値を取りうる 0の場合はIPアドレス４オクテット目で1を示す（1相対の為）
+//lParamは-1,0,4の値を取りうる -1(PING実行前) 0(PING実行後疎通なし) 4(PING実行後疎通あり)
 afx_msg LRESULT CChildView::OnCustomStatus(WPARAM wParam, LPARAM lParam)
 {
-    //CListCtrl& m_List = GetListCtrl();
-    //char Status[5];
-    //sprintf_s(Status, 5, "%d", (int)lParam);
-    //m_List.SetItemText((int)wParam, 3, Status);
-    //(int*)(&GridStatus[0][0])
+
     int* ptr = &GridStatus[0][0]; // 二次元配列の先頭アドレスをポインタに代入
     ptr[wParam] = (int)lParam;
-    //Sleep(1000);
-    Invalidate();
+    //Invalidate();
     return 0;
 }
+//すべての処理完了後にタイマーを止める処理の実行
+afx_msg LRESULT CChildView::OnCustomFinish(WPARAM wParam, LPARAM lParam)
+{
+    if (m_timerID != 0)
+    {
+        Invalidate();
+        // タイマーの設定を解除します。
+        BOOL err = KillTimer(m_timerID);
+        // タイマーの設定が解除できない場合
+        if (!err)
+        {
+            ::AfxMessageBox(_T("タイマの設定を解除できませんでした。"));
+        }
+        m_timerID = 0;
+    }
+    return 0;
+}
+
 void CChildView::initRow()
 {
     // TODO: Add your implementation code here.
     std::vector<int> rows;
     int* ptr = &GridStatus[0][0]; // 二次元配列の先頭アドレスをポインタに代入
     for (int i = 0; i < 254; i++) {
+        //PING未チェック状態では-1を入れておく。-1が入っていると画面では虹色の表示になる。
         ptr[i] = -1;
-        //GetListCtrl().SetItemText(i, 3, _T("-1"));
         rows.push_back(i);
     }
 
+    //すでに行（第4オクテット1が0行目の扱い）情報がある場合は行情報をdeleteする。
     if (rowLists != 0) {
         rowLists->del();
         delete rowLists;
     }
     rowLists = new RowManager(rows);
-    //ipAddress = _T("127.0.0.1");
-    //rowLists->SetIpAddr(ipAddress.GetBuffer());
     for (int i = 1; i < 255; i++) {
-        //char tszText[512];
-        //memset(tszText, 0, 512);
+        //チェックしたいIPアドレスを生成する。
         ipAddress.Format(_T("%d.%d.%d.%d"),
             (int)((dwIPAddress >> 24) & 0xFF),
             (int)((dwIPAddress >> 16) & 0xFF),
             (int)((dwIPAddress >> 8) & 0xFF),
             (int)(i & 0xFF));//(int)(dwIPAddress & 0xFF));
-        //GetListCtrl().GetItemText(i, 0, tszText, 256);
-        //rowLists->SetIpAddr(tszText);
-        //ipAddress = _T("192.168.1.2");
         rowLists->SetIpAddr(ipAddress.GetBuffer());
     }
 
@@ -300,5 +258,166 @@ void CChildView::initRow()
 int CChildView::GetRow()
 {
     // TODO: Add your implementation code here.
+    //第４セグメントの1を0行目と考えて、まだPINGしていない行の払い出しを呼び出し、行を返す。
     return rowLists->GetNextRow();
+}
+
+void CChildView::OnDestroy()
+{
+    CWnd::OnDestroy();
+    // タイマが設定されている場合
+    if (m_timerID != 0)
+    {
+        // タイマーの設定を解除します。
+        BOOL err = KillTimer(m_timerID);
+        // タイマーの設定が解除できない場合
+        if (!err)
+        {
+            ::AfxMessageBox(_T("タイマの設定を解除できませんでした。"));
+        }
+        m_timerID = 0;
+    }
+    //ワーカースレッドが存在する場合はdeleteする。
+    if ((unsigned long)workerthread != 0) {
+        delete workerthread;
+    }
+    //解放漏れが発生する為、要素がある場合は解放する。
+    if (rowLists != 0) {
+        rowLists->del();
+        delete rowLists;
+    }
+
+    // TODO: Add your message handler code here
+}
+void CChildView::CreateMemDC(CDC* pDC, const CRect& rect)
+{
+    //ダブルバッファリング用のメモリ領域を作成します。
+    //初期画面表示などでpDCがNULL状態の場合に落ちる状況を迂回する
+    if (pDC != nullptr) {
+        if (m_MemBitmap.GetSafeHandle())
+            m_MemBitmap.DeleteObject();
+        if (m_MemDC.GetSafeHdc())
+            m_MemDC.DeleteDC();
+
+        CDC* pTempDC = GetDC();
+        m_MemDC.CreateCompatibleDC(pTempDC);
+        ReleaseDC(pTempDC);
+
+        m_MemBitmap.CreateCompatibleBitmap(pDC, rect.Width(), rect.Height());
+        m_MemDC.SelectObject(&m_MemBitmap);
+        m_bMemDCValid = TRUE;
+    }
+}
+
+void CChildView::DrawScene(CDC* pDC)
+{
+    // ダブルバッファリングされた描画処理をここに記述する
+    // pDC はメモリ内のデバイスコンテキスト (m_MemDC) を指す
+    // 例えば、次のように描画命令を追加できる:
+    // TODO: Add your message handler code here
+    CRect rectClient;
+    GetClientRect(&rectClient);
+
+    pDC->SetBkMode(TRANSPARENT); // 背景を透明にする
+    CFont font;
+    font.CreateFont(25, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET,
+        OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, DEFAULT_PITCH | FF_SWISS, _T("Arial"));
+
+    CFont* pOldFont = pDC->SelectObject(&font);
+    COLORREF originalColor = pDC->GetTextColor(); // 元の文字色を保存
+    int cellSize = 20; // セルのサイズ（ピクセル単位）
+    int numRows = 16;
+    int numCols = 16;
+
+    int numSteps = 16; // グラデーションのステップ数
+
+    int ipCount = 1;
+    for (int row = 0; row < numRows; ++row)
+    {
+        for (int col = 0; col < numCols; ++col)
+        {
+            int red = 255 - row * (255 / numSteps); // 赤成分を変化させる
+            int green = col * numSteps; // 緑成分を固定
+            int blue = row * (255 / numSteps); // 青成分を変化させる
+
+            COLORREF color;// = RGB(red, green, blue);
+            if (GridStatus[row][col] == -1) {
+                color = RGB(red, green, blue);
+                pDC->SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
+            }
+            else if (GridStatus[row][col] == 0) {
+                color = RGB(red * 0.5, green * 0.5, blue * 0.5);
+                pDC->SetTextColor(RGB(255, 255, 255)); // 新しい文字色を設定
+            }
+            else if (GridStatus[row][col] == 4) {
+                color = RGB(red * 2 > 255 ? 255 : red * 2,
+                    green * 2 > 255 ? 255 : green * 2,
+                    blue * 2 > 255 ? 255 : blue * 255);
+                pDC->SetTextColor(RGB(0, 0, 0)); // 新しい文字色を設定
+            }
+            if ((row == 15) && ((col == 14) || (col == 15))) {
+                color = RGB(0, 0, 0);
+                pDC->SetTextColor(RGB(255, 255, 255)); // 新しい文字色を設定
+            }
+            CBrush brush(color);
+
+            pDC->SelectObject(&brush);
+
+            int rectWidth = rectClient.Width() / numSteps;
+            int rectHeight = rectClient.Height() / numSteps;
+
+            int left = col * rectWidth;
+            int top = row * rectHeight;
+            int right = left + rectWidth;
+            int bottom = top + rectHeight;
+
+            pDC->Rectangle(CRect(left, top, right, bottom));
+            CString strData;
+            strData.Format(_T("%03d"), ipCount);
+            pDC->DrawText(strData, CRect(left, top, right, bottom), DT_CENTER | DT_SINGLELINE | DT_NOPREFIX | DT_VCENTER);
+            ipCount++;
+        }
+    }
+    pDC->SelectObject(pOldFont); // 元のフォントに戻す
+    font.DeleteObject(); // フォントを解放
+    pDC->SetTextColor(originalColor); // 元の文字色に戻す
+}
+
+void CChildView::OnSize(UINT nType, int cx, int cy)
+{
+    CWnd::OnSize(nType, cx, cy);
+
+    // 画面サイズが変更されたときに、メモリ内のビットマップとデバイスコンテキストを再作成する
+    if (cx > 0 && cy > 0)
+    {
+        CRect clientRect(0, 0, cx, cy);
+
+        if (m_MemBitmap.GetSafeHandle())
+            m_MemBitmap.DeleteObject();
+        if (m_MemDC.GetSafeHdc())
+            m_MemDC.DeleteDC();
+
+        CreateMemDC(NULL, clientRect);
+        //Invalidate();  // 再描画を要求
+    }
+}
+
+
+BOOL CChildView::OnEraseBkgnd(CDC* pDC)
+{
+// ダブルバッファリング実行時に、画面が白にちらつく（画面の白消去を行う）処理を行わないようにする。
+// TODO: Add your message handler code here and/or call default
+//    return CWnd::OnEraseBkgnd(pDC);
+    return TRUE;
+}
+
+void CChildView::OnTimer(UINT_PTR nIDEvent)
+{
+    // TODO: Add your message handler code here and/or call default
+    if (nIDEvent == TIMER_REDRAW_ID)
+    {
+        // タイマーが発生したときの処理をここに記述
+        Invalidate();//再描画を要求
+    }
+    CWnd::OnTimer(nIDEvent);
 }

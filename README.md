@@ -1,7 +1,7 @@
 # SegmentPingMonitor
 ## Executing multi-threaded Ping on 254 devices within a specific segment.
 Demo Video: Running Windows Executable
-![SegmentPingMonitor_](https://github.com/takahiro-ohashi/SegmentPingMonitor/assets/28595306/5f000f06-4f87-43f1-a2bc-dd96c903a894)
+![SegmentPingMonitor](https://github.com/takahiro-ohashi/SegmentPingMonitor/assets/28595306/fe3c6315-8841-4b6b-a117-fcec221142e7)
 
 Initial Startup Screen
 ![Initial Startup Screen](<img/2023-08-15 151124-1.png>)

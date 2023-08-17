@@ -29,7 +29,7 @@ DWORD ThreadMaker::ThreadFunc()
 	TCHAR tszText[256];
 	memset(&tszText, 0, sizeof(TCHAR) * 256);
 	//int RowCount = pListCtrl->GetItemCount();
-	int RowCount = 253;
+	int RowCount;// = 253;
 	pView->initRow();
 	//RowCount = 16;
 	//RowCount = 1; //Pingデバッグ用
@@ -57,5 +57,6 @@ DWORD ThreadMaker::ThreadFunc()
 	{
 		delete thread_vector[i];
 	}
+	pView->PostMessageA(WM_CUSTOM_FINISH, 0, 0);
 	return 0;
 }

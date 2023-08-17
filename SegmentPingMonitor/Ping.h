@@ -12,6 +12,8 @@
 class Ping
 {
 public:
+	bool stopFlag;
 	//int validateAddress(TCHAR* address);
 	int gui_ping(CChildView* pView, long row);
+	void stopreq();
 };

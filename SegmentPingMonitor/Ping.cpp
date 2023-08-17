@@ -27,16 +27,21 @@ int Ping::validateAddress(TCHAR* address)
 }
 #endif
 //CCriticalSection pingCriticalSection;
+void Ping::stopreq() 
+{
+	stopFlag = true;
+}
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include "resource.h"
 int Ping::gui_ping(CChildView* pView, long row)
 {
+	stopFlag = false;
 	int rowInf = 0;
 	//int successCounter;
 	while (true) {
 		rowInf = pView->GetRow();
-		if (rowInf < 0) {
+		if (rowInf < 0 || stopFlag) {
 			break;
 		}
 		{
