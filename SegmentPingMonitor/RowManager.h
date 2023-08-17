@@ -1,5 +1,5 @@
 #pragma once
-#include <afxmt.h> // •K—v‚Èƒwƒbƒ_[ƒtƒ@ƒCƒ‹‚ğƒCƒ“ƒNƒ‹[ƒh
+#include <afxmt.h> // å¿…è¦ãªãƒ˜ãƒƒãƒ€ãƒ¼ãƒ•ã‚¡ã‚¤ãƒ«ã‚’ã‚¤ãƒ³ã‚¯ãƒ«ãƒ¼ãƒ‰
 #include <vector>
 #include <string>
 #include <regex>
@@ -15,10 +15,10 @@ public:
     }
 
     int GetNextRow() {
-        CSingleLock lock(&criticalSection_, TRUE); // ƒNƒŠƒeƒBƒJƒ‹ƒZƒNƒVƒ‡ƒ“‚ÉƒƒbƒN‚ğ‚©‚¯‚é
+        CSingleLock lock(&criticalSection_, TRUE); // ã‚¯ãƒªãƒ†ã‚£ã‚«ãƒ«ã‚»ã‚¯ã‚·ãƒ§ãƒ³ã«ãƒ­ãƒƒã‚¯ã‚’ã‹ã‘ã‚‹
 
         if (currentIndex_ >= rowAddresses_.size()) {
-            return -1;  // row‚ªc‚Á‚Ä‚¢‚È‚¢ê‡‚Í-1‚ğ•Ô‚·
+            return -1;  // rowãŒæ®‹ã£ã¦ã„ãªã„å ´åˆã¯-1ã‚’è¿”ã™
         }
 
         int row = rowAddresses_[currentIndex_];
@@ -70,6 +70,6 @@ private:
     std::vector<int> rowAddresses_;
     std::vector<S> ipAddress_;
     size_t currentIndex_;
-    CCriticalSection criticalSection_; // MFC‚ÌƒNƒŠƒeƒBƒJƒ‹ƒZƒNƒVƒ‡ƒ“
+    CCriticalSection criticalSection_; // MFCã®ã‚¯ãƒªãƒ†ã‚£ã‚«ãƒ«ã‚»ã‚¯ã‚·ãƒ§ãƒ³
 };
 

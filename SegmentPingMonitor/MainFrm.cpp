@@ -157,11 +157,11 @@ void CMainFrame::OnUpdateFilePrintPreview(CCmdUI* pCmdUI)
 
 afx_msg LRESULT CMainFrame::OnCustomStatusbar(WPARAM wParam, LPARAM lParam)
 {
-	// lParam‚Å“n‚³‚ê‚½COPYDATASTRUCT‚©‚çƒf[ƒ^‚ðŽæ‚èo‚µ‚Ü‚·B
+	// lParamã§æ¸¡ã•ã‚ŒãŸCOPYDATASTRUCTã‹ã‚‰ãƒ‡ãƒ¼ã‚¿ã‚’å–ã‚Šå‡ºã—ã¾ã™ã€‚
 	COPYDATASTRUCT* pData = (COPYDATASTRUCT*)lParam;
 	SendData* pSendData = (SendData*)pData->lpData;
 	CString receivedString((LPCTSTR)pSendData->msg);
-	// ŽóM‚µ‚½•¶Žš—ñ‚ðƒXƒe[ƒ^ƒXƒo[‚É•\Ž¦
+	// å—ä¿¡ã—ãŸæ–‡å­—åˆ—ã‚’ã‚¹ãƒ†ãƒ¼ã‚¿ã‚¹ãƒãƒ¼ã«è¡¨ç¤º
 	m_wndStatusBar.SetInformation((LPCTSTR)receivedString);
 	return 0;
 }

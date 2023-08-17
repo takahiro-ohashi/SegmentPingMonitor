@@ -32,9 +32,9 @@ DWORD ThreadMaker::ThreadFunc()
 	int RowCount;// = 253;
 	pView->initRow();
 	//RowCount = 16;
-	//RowCount = 1; //PingƒfƒoƒbƒO—p
-	RowCount = 60;  //ƒMƒŠƒMƒŠ‚ğU‚ß‚é‚Æ‚«
-	//RowCount = 100; //ƒ_ƒ‚»‚¤
+	//RowCount = 1; //Pingãƒ‡ãƒãƒƒã‚°ç”¨
+	RowCount = 60;  //ã‚®ãƒªã‚®ãƒªã‚’æ”»ã‚ã‚‹ã¨ã
+	//RowCount = 100; //ãƒ€ãƒ¡ãã†
 	CThreads work;
 	std::vector<CThread*> thread_vector(RowCount);
 	for (int i = 0; i < RowCount; i++)
